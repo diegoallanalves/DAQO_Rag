@@ -1,24 +1,20 @@
-# DAQO Congressional RAG — Congress.gov-only v3
+# DAQO Congressional RAG — GovTrack-only v4
 
-This version removes `GOVTRACK URL` from the RAG retrieval workflow.
+## Evidence source
+This version uses only the Excel column `GOVTRACK URL`.
 
-## Research flow
-Excel dataset → Congress.gov full text → evidence retrieval → qualitative Gate 0–4 analysis → RELEVANT YES/NO → Country / Industry / Investment → Risk / Opportunity → evidence-backed explanation.
+The `Secondary Source - full text (congress.gov)` column is ignored by the application and can remain in the workbook without affecting retrieval.
 
-## Workbook
-Place your workbook at `data/raw_data.xlsx`.
+## Flow
+Excel → GOVTRACK URL → retrieve evidence → qualitative Gate analysis → RELEVANT YES/NO → Country / Industry / Investment → Risk / Opportunity → evidence-backed explanation.
 
-You may delete the `GOVTRACK URL` column. Keep the Congress.gov full-text column, such as `Secondary Source - full text (congress.gov)`.
+## Run locally
+1. Put `raw_data.xlsx` inside `data/`.
+2. Create `.env` in the project root:
+   `OPENAI_API_KEY=your_key_here`
+3. Run:
+   `pip install -r requirements.txt`
+4. Start:
+   `streamlit run app.py`
 
-## Local run
-Create `.env` in the project root:
-`OPENAI_API_KEY=your_key_here`
-
-Then run:
-`pip install -r requirements.txt`
-`streamlit run app.py`
-
-## Important source behavior
-Congress.gov can return HTTP 403 to automated page requests. This version intentionally does NOT silently fall back to GovTrack. Blocked documents are flagged transparently so the research record remains defensible.
-
-Test a small sample before attempting the full dataset.
+Never commit `.env` to GitHub.
