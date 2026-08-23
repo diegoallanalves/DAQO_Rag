@@ -9,7 +9,7 @@ def fetch_url_text(url,timeout=35):
 
     Congress.gov may return HTTP 403 to automated requests even when the page
     works normally in a browser. A 403 is therefore recorded as BLOCKED rather
-    than as a broken/invalid source. GovTrack remains a usable fallback source.
+    than as a broken/invalid source. Congress.gov is the sole document source for this version.
     """
     headers={
         "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -58,7 +58,7 @@ def build_document_store(df,m,progress_callback=None):
                 for i,p in enumerate(chunks(text),1):cc.append({"source":source,"url":url,"text":p})
                 log.append({"Bill":bill,"Source":source,"Result":"Loaded","URL":url})
             except PermissionError as e:
-                log.append({"Bill":bill,"Source":source,"Result":"Blocked by source — fallback used","Detail":str(e),"URL":url})
+                log.append({"Bill":bill,"Source":source,"Result":"Blocked by Congress.gov","Detail":str(e),"URL":url})
             except Exception as e:
                 errors+=1
                 log.append({"Bill":bill,"Source":source,"Result":f"Failed: {str(e)[:80]}","Detail":str(e)[:120],"URL":url})

@@ -1,18 +1,24 @@
-# DAQO Congressional RAG — Local Test v2
+# DAQO Congressional RAG — Congress.gov-only v3
 
-## Run locally
-1. Put `raw_data.xlsx` in `data/`.
-2. Create `.env` in the project root:
-   `OPENAI_API_KEY=your_key`
-3. Install:
-   `pip install -r requirements.txt`
-4. Run:
-   `streamlit run app.py`
+This version removes `GOVTRACK URL` from the RAG retrieval workflow.
 
-## Retrieval behavior
-The app checks both GovTrack and Congress.gov URLs from the Excel file.
-Congress.gov can return HTTP 403 to automated requests even when the URL works in a browser.
-The app now labels this as **Blocked by source — fallback used**, rather than a true application error.
-If GovTrack loads, that bill remains ready for analysis. The original Congress.gov URL is retained for traceability.
+## Research flow
+Excel dataset → Congress.gov full text → evidence retrieval → qualitative Gate 0–4 analysis → RELEVANT YES/NO → Country / Industry / Investment → Risk / Opportunity → evidence-backed explanation.
 
-Start with 3–10 bills during testing before running the full workbook.
+## Workbook
+Place your workbook at `data/raw_data.xlsx`.
+
+You may delete the `GOVTRACK URL` column. Keep the Congress.gov full-text column, such as `Secondary Source - full text (congress.gov)`.
+
+## Local run
+Create `.env` in the project root:
+`OPENAI_API_KEY=your_key_here`
+
+Then run:
+`pip install -r requirements.txt`
+`streamlit run app.py`
+
+## Important source behavior
+Congress.gov can return HTTP 403 to automated page requests. This version intentionally does NOT silently fall back to GovTrack. Blocked documents are flagged transparently so the research record remains defensible.
+
+Test a small sample before attempting the full dataset.

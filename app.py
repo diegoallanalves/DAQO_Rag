@@ -28,10 +28,10 @@ def find_col(*names):
     return None
 
 cols={"bill_col":find_col("Bill Number","Bill"),"title_col":find_col("Title"),"status_col":find_col("Status"),
-"country_col":find_col("Country"),"type_col":find_col("Bill Type","Type"),"govtrack_col":find_col("GOVTRACK URL","GovTrack"),
+"country_col":find_col("Country"),"type_col":find_col("Bill Type","Type"),
 "congress_col":find_col("Secondary Source","congress.gov"),"congress_session_col":find_col("Congress")}
 
-st.info("Country is taken from the Excel dataset. The AI does not infer or replace it.")
+st.info("Primary-source workflow: the app uses the official Congress.gov full-text URL. Country is taken from the Excel dataset; the AI does not infer or replace it.")
 st.subheader("📊 Dataset overview")
 c1,c2=st.columns(2); c1.metric("Congressional actions",len(df)); c2.metric("Countries",df[cols["country_col"]].nunique() if cols["country_col"] else "—")
 with st.expander("View source data"):st.dataframe(df,use_container_width=True)
