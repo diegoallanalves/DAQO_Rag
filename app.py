@@ -55,11 +55,19 @@ if st.session_state.summary:
 st.divider();st.subheader("🎯 Step 2 — Qualitative relevance & classification")
 st.markdown("**First:** RELEVANT = YES/NO. **Then, if relevant:** exactly one of Country Risk/Opportunity, Industry Risk/Opportunity, or Investment Risk/Opportunity.")
 st.markdown("Scenarios: 🇨🇳 **CHINA-EXPORT** · 🇲🇽 **MEXICO-MANUFACTURE** · 🇺🇸 **US-MANUFACTURE**")
+
+# Local development: read OPENAI_API_KEY from .env.
+# Streamlit Community Cloud: read it privately from app Secrets.
 key=os.getenv("OPENAI_API_KEY","").strip()
-if not key:st.warning("Add OPENAI_API_KEY to a local .env file before running Step 2.")
+if not key:
+    try:
+        key=str(st.secrets.get("OPENAI_API_KEY","")).strip()
+    except Exception:
+        key=""
+
 if st.button("🧠 Run Qualitative Classification"):
     if not st.session_state.docs:st.error("Run Step 1 first.")
-    elif not key:st.error("OPENAI_API_KEY missing from .env")
+    elif not key:st.error("The AI analysis service is not configured. Please contact the app administrator.")
     else:
         p=st.progress(0);msg=st.empty()
         def cb2(done,total,text):p.progress(min(done/max(total,1),1.0));msg.write(text)
