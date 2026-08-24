@@ -1,20 +1,15 @@
-# DAQO Congressional RAG — GovTrack-only v4
+# DAQO Congressional RAG — GovTrack-only v5
 
-## Evidence source
-This version uses only the Excel column `GOVTRACK URL`.
+New in v5:
+- Failed API/model calls are classified as ANALYSIS FAILED, never Not Relevant.
+- Dashboard shows Reviewed / Relevant / Not Relevant / Analysis Failed.
+- Excel export includes All Results, Relevant, Not Relevant, Evidence, Failed Analysis, and Methodology.
+- GovTrack remains the only evidence URL source.
 
-The `Secondary Source - full text (congress.gov)` column is ignored by the application and can remain in the workbook without affecting retrieval.
+Run locally:
+1. Put raw_data.xlsx in data/.
+2. Create .env with OPENAI_API_KEY=your_key_here
+3. pip install -r requirements.txt
+4. streamlit run app.py
 
-## Flow
-Excel → GOVTRACK URL → retrieve evidence → qualitative Gate analysis → RELEVANT YES/NO → Country / Industry / Investment → Risk / Opportunity → evidence-backed explanation.
-
-## Run locally
-1. Put `raw_data.xlsx` inside `data/`.
-2. Create `.env` in the project root:
-   `OPENAI_API_KEY=your_key_here`
-3. Run:
-   `pip install -r requirements.txt`
-4. Start:
-   `streamlit run app.py`
-
-Never commit `.env` to GitHub.
+Never commit .env.

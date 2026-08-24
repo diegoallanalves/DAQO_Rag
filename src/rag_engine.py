@@ -162,26 +162,33 @@ Return the required JSON classification."""
             a=json.loads(r.choices[0].message.content)
         except Exception as e:
             a={
-                "relevant":"NO",
-                "primary_classification":"NOT RELEVANT",
-                "policy_stage":"Other",
-                "directness":"EMERGING",
+                "analysis_status":"FAILED",
+                "error_type":type(e).__name__,
+                "error_message":str(e),
+                "relevant":"",
+                "primary_classification":"",
+                "policy_stage":"",
+                "directness":"",
                 "affected_scenarios":[],
-                "mechanism":"Analysis failed",
+                "mechanism":"",
                 "evidence":[],
-                "analytical_summary":f"Analysis failed: {e}",
-                "confidence":"LOW"
+                "analytical_summary":"Analysis failed before a qualitative conclusion could be produced.",
+                "confidence":""
             }
-
-        if str(a.get("relevant","NO")).upper() != "YES":
-            a["relevant"]="NO"
-            a["primary_classification"]="NOT RELEVANT"
-            a["affected_scenarios"]=[]
+        else:
+            a["analysis_status"]="SUCCESS"
+            a["error_type"]=""
+            a["error_message"]=""
+            if str(a.get("relevant","NO")).upper() != "YES":
+                a["relevant"]="NO"
+                a["primary_classification"]="NOT RELEVANT"
+                a["affected_scenarios"]=[]
 
         a.update({
             "bill_number":d["bill_number"],
             "title":d["title"],
-            "country":d["country"]
+            "country":d["country"],
+            "source_urls":d.get("source_urls",[])
         })
         out.append(a)
 
