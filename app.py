@@ -17,253 +17,114 @@ st.caption("Qualitative Congressional content analysis for DAQO's China-export, 
 
 @st.cache_data
 def load_excel():
-    if not DATA_PATH.exists():
-        return None
-    d = pd.read_excel(DATA_PATH)
-    d.columns = [str(c).strip() for c in d.columns]
-    return d
+    if not DATA_PATH.exists(): return None
+    d=pd.read_excel(DATA_PATH); d.columns=[str(c).strip() for c in d.columns]; return d
 
-df = load_excel()
+df=load_excel()
 if df is None:
-    st.error("Missing data/raw_data.xlsx")
-    st.stop()
+    st.error("Missing data/raw_data.xlsx"); st.stop()
 
 def find_col(*names):
-    norm = {c.lower().replace(" ","").replace("-","").replace("_",""): c for c in df.columns}
+    norm={c.lower().replace(" ","").replace("-","").replace("_",""):c for c in df.columns}
     for n in names:
-        k = n.lower().replace(" ","").replace("-","").replace("_","")
-        if k in norm:
-            return norm[k]
+        k=n.lower().replace(" ","").replace("-","").replace("_","")
+        if k in norm: return norm[k]
     for c in df.columns:
-        if any(n.lower() in c.lower() for n in names):
-            return c
+        if any(n.lower() in c.lower() for n in names): return c
     return None
 
-cols = {
-    "bill_col": find_col("Bill Number", "Bill"),
-    "title_col": find_col("Title"),
-    "status_col": find_col("Status"),
-    "country_col": find_col("Country"),
-    "type_col": find_col("Bill Type", "Type"),
-    "govtrack_col": find_col("GOVTRACK URL", "GovTrack"),
-    "congress_session_col": find_col("Congress"),
-}
+cols={
+    "bill_col":find_col("Bill Number","Bill"),"title_col":find_col("Title"),"status_col":find_col("Status"),
+    "country_col":find_col("Country"),"type_col":find_col("Bill Type","Type"),
+    "govtrack_col":find_col("GOVTRACK URL","GovTrack"),
+    "congress_col":find_col("Secondary Source - full text (congress.gov)","Secondary Source","congress.gov"),
+    "congress_session_col":find_col("Congress")}
 
-if not cols["govtrack_col"]:
-    st.error('The workbook must contain the "GOVTRACK URL" column.')
-    st.stop()
+if not cols["govtrack_col"] and not cols["congress_col"]:
+    st.error('The workbook needs a GOVTRACK URL or Secondary Source - full text (congress.gov) column.'); st.stop()
 
-st.info('📌 Evidence source: the app uses only the "GOVTRACK URL" column. The Secondary Source / Congress.gov column is ignored.')
+st.subheader("🌐 Choose Congressional Data Source")
+source_options={}
+if cols["govtrack_col"]: source_options["GovTrack Bill Page"]="govtrack"
+if cols["congress_col"]: source_options["Congress.gov Full Bill Text"]="congress"
+source_label=st.radio("Website data source",list(source_options.keys()),horizontal=True,help="One selected source is used for evidence retrieval in this run.")
+selected_source=source_options[source_label]
+if selected_source=="govtrack": st.caption('📘 GovTrack Bill Page — Excel column: "GOVTRACK URL".')
+else: st.caption('🏛️ Congress.gov Full Bill Text — Excel column: "Secondary Source - full text (congress.gov)".')
+st.info("Friendly source names are shown here; the original Excel column names remain unchanged.")
+
 st.subheader("📊 Dataset overview")
-c1, c2 = st.columns(2)
-c1.metric("Congressional actions", len(df))
-c2.metric("Countries", df[cols["country_col"]].nunique() if cols["country_col"] else "—")
+c1,c2=st.columns(2); c1.metric("Congressional actions",len(df)); c2.metric("Countries",df[cols["country_col"]].nunique() if cols["country_col"] else "—")
+with st.expander("View source data"): st.dataframe(df,use_container_width=True)
+for k,v in {"docs":[],"summary":None,"log":[],"results":[]}.items():
+    if k not in st.session_state: st.session_state[k]=v
 
-with st.expander("View source data"):
-    st.dataframe(df, use_container_width=True)
-
-for k, v in {"docs": [], "summary": None, "log": [], "results": []}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
-
-st.divider()
-st.subheader("📚 Step 1 — Retrieve Congressional evidence")
-n = st.number_input("Actions to scan", 1, max(1, len(df)), min(10, len(df)), 1)
-
-if st.button("🌐 Build Evidence Base", type="primary"):
-    p = st.progress(0)
-    msg = st.empty()
-    def cb(done, total, text):
-        p.progress(min(done / max(total, 1), 1.0))
-        msg.write(text)
-
-    docs, s, l = build_document_store(df.head(int(n)), cols, cb)
-    st.session_state.docs = docs
-    st.session_state.summary = s
-    st.session_state.log = l
-    st.session_state.results = []
-    p.progress(1.0)
-    msg.empty()
-    st.success(f"{len(docs)} actions loaded from GovTrack.")
-
+st.divider(); st.subheader("📚 Step 1 — Retrieve Congressional evidence")
+n=st.number_input("Actions to scan",1,max(1,len(df)),min(10,len(df)),1)
+if st.button("🌐 Build Evidence Base",type="primary"):
+    p=st.progress(0); msg=st.empty()
+    def cb(done,total,text): p.progress(min(done/max(total,1),1.0)); msg.write(text)
+    docs,s,l=build_document_store(df.head(int(n)),cols,selected_source,cb)
+    st.session_state.docs=docs; st.session_state.summary=s; st.session_state.log=l; st.session_state.results=[]
+    p.progress(1.0); msg.empty(); st.success(f"{len(docs)} actions loaded from {source_label}.")
 if st.session_state.summary:
-    s = st.session_state.summary
-    a,b,c,d = st.columns(4)
-    a.metric("Bills scanned", s["bills_scanned"])
-    b.metric("GovTrack links checked", s["links_checked"])
-    c.metric("Sources loaded", s["sources_loaded"])
-    d.metric("Errors", s["source_errors"])
-    with st.expander("🔎 Source diagnostics"):
-        st.dataframe(pd.DataFrame(st.session_state.log), use_container_width=True, hide_index=True)
+    s=st.session_state.summary; a,b,c,d=st.columns(4)
+    a.metric("Bills scanned",s["bills_scanned"]); b.metric("Source links checked",s["links_checked"]); c.metric("Sources loaded",s["sources_loaded"]); d.metric("Errors",s["source_errors"])
+    with st.expander("🔎 Source diagnostics"): st.dataframe(pd.DataFrame(st.session_state.log),use_container_width=True,hide_index=True)
 
-st.divider()
-st.subheader("🎯 Step 2 — Qualitative relevance & classification")
+st.divider(); st.subheader("🎯 Step 2 — Qualitative relevance & classification")
 st.markdown("**First:** RELEVANT = YES/NO. **Then, if relevant:** exactly one of Country Risk/Opportunity, Industry Risk/Opportunity, or Investment Risk/Opportunity.")
 st.markdown("Scenarios: 🇨🇳 **CHINA-EXPORT** · 🇲🇽 **MEXICO-MANUFACTURE** · 🇺🇸 **US-MANUFACTURE**")
-
-key = os.getenv("OPENAI_API_KEY", "").strip()
+key=os.getenv("OPENAI_API_KEY","").strip()
 if not key:
-    try:
-        key = str(st.secrets.get("OPENAI_API_KEY", "")).strip()
-    except Exception:
-        key = ""
-
+    try: key=str(st.secrets.get("OPENAI_API_KEY","")).strip()
+    except Exception: key=""
 if st.button("🧠 Run Qualitative Classification"):
-    if not st.session_state.docs:
-        st.error("Run Step 1 first.")
-    elif not key:
-        st.error("The AI analysis service is not configured. Please contact the app administrator.")
+    if not st.session_state.docs: st.error("Run Step 1 first.")
+    elif not key: st.error("The AI analysis service is not configured. Please contact the app administrator.")
     else:
-        p = st.progress(0)
-        msg = st.empty()
-        def cb2(done, total, text):
-            p.progress(min(done / max(total, 1), 1.0))
-            msg.write(text)
-        st.session_state.results = run_classification(st.session_state.docs, key, cb2)
-        p.progress(1.0)
-        msg.empty()
-        st.success("Classification complete.")
-
+        p=st.progress(0); msg=st.empty()
+        def cb2(done,total,text): p.progress(min(done/max(total,1),1.0)); msg.write(text)
+        st.session_state.results=run_classification(st.session_state.docs,key,cb2); p.progress(1.0); msg.empty(); st.success("Classification complete.")
 
 def build_excel_export(results):
-    all_rows, evidence_rows, failed_rows = [], [], []
-
+    all_rows=[]; evidence_rows=[]; failed_rows=[]
     for r in results:
-        status = r.get("analysis_status", "SUCCESS")
-        scenarios = "; ".join(r.get("affected_scenarios", []))
-        source_urls = "; ".join(r.get("source_urls", []))
-
-        all_rows.append({
-            "Analysis Status": status,
-            "Bill": r.get("bill_number", ""),
-            "Title": r.get("title", ""),
-            "Country": r.get("country", ""),
-            "Relevant": r.get("relevant", ""),
-            "Primary Classification": r.get("primary_classification", ""),
-            "Policy Stage": r.get("policy_stage", ""),
-            "Directness": r.get("directness", ""),
-            "Affected Scenarios": scenarios,
-            "Mechanism": r.get("mechanism", ""),
-            "Analytical Summary": r.get("analytical_summary", ""),
-            "Confidence": r.get("confidence", ""),
-            "GovTrack URL": source_urls,
-            "Error Type": r.get("error_type", ""),
-            "Error Message": r.get("error_message", ""),
-        })
-
-        for i, e in enumerate(r.get("evidence", []), 1):
-            evidence_rows.append({
-                "Bill": r.get("bill_number", ""),
-                "Title": r.get("title", ""),
-                "Evidence #": i,
-                "Quote": e.get("quote", ""),
-                "Source": e.get("source", "GovTrack"),
-                "Why It Matters": e.get("why_it_matters", ""),
-                "GovTrack URL": source_urls,
-            })
-
-        if status == "FAILED":
-            failed_rows.append({
-                "Bill": r.get("bill_number", ""),
-                "Title": r.get("title", ""),
-                "Country": r.get("country", ""),
-                "Error Type": r.get("error_type", ""),
-                "Error Message": r.get("error_message", ""),
-                "GovTrack URL": source_urls,
-            })
-
-    all_df = pd.DataFrame(all_rows)
-    relevant_df = all_df[(all_df["Analysis Status"] == "SUCCESS") & (all_df["Relevant"] == "YES")]
-    not_relevant_df = all_df[(all_df["Analysis Status"] == "SUCCESS") & (all_df["Relevant"] == "NO")]
-    evidence_df = pd.DataFrame(evidence_rows)
-    failed_df = pd.DataFrame(failed_rows)
-    methodology_df = pd.DataFrame({
-        "Methodology": ["Evidence source", "Error rule"],
-        "Description": [
-            "GovTrack URL only; Congress.gov secondary source is ignored.",
-            "API/model failures are ANALYSIS FAILED and are never counted as Not Relevant.",
-        ],
-    })
-
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        all_df.to_excel(writer, index=False, sheet_name="All Results")
-        relevant_df.to_excel(writer, index=False, sheet_name="Relevant")
-        not_relevant_df.to_excel(writer, index=False, sheet_name="Not Relevant")
-        evidence_df.to_excel(writer, index=False, sheet_name="Evidence")
-        failed_df.to_excel(writer, index=False, sheet_name="Failed Analysis")
-        methodology_df.to_excel(writer, index=False, sheet_name="Methodology")
-
+        status=r.get("analysis_status","SUCCESS"); scenarios="; ".join(r.get("affected_scenarios",[])); source_urls="; ".join(r.get("source_urls",[])); evidence_source=r.get("evidence_source","")
+        all_rows.append({"Analysis Status":status,"Bill":r.get("bill_number",""),"Title":r.get("title",""),"Country":r.get("country",""),"Relevant":r.get("relevant",""),"Primary Classification":r.get("primary_classification",""),"Policy Stage":r.get("policy_stage",""),"Directness":r.get("directness",""),"Affected Scenarios":scenarios,"Mechanism":r.get("mechanism",""),"Analytical Summary":r.get("analytical_summary",""),"Confidence":r.get("confidence",""),"Evidence Source":evidence_source,"Source URL":source_urls,"Error Type":r.get("error_type",""),"Error Message":r.get("error_message","")})
+        for i,e in enumerate(r.get("evidence",[]),1):
+            evidence_rows.append({"Bill":r.get("bill_number",""),"Title":r.get("title",""),"Evidence #":i,"Quote":e.get("quote",""),"Source":e.get("source",evidence_source),"Why It Matters":e.get("why_it_matters",""),"Evidence Source":evidence_source,"Source URL":source_urls})
+        if status=="FAILED": failed_rows.append({"Bill":r.get("bill_number",""),"Title":r.get("title",""),"Country":r.get("country",""),"Error Type":r.get("error_type",""),"Error Message":r.get("error_message",""),"Evidence Source":evidence_source,"Source URL":source_urls})
+    all_df=pd.DataFrame(all_rows); relevant_df=all_df[(all_df["Analysis Status"]=="SUCCESS")&(all_df["Relevant"]=="YES")]; not_relevant_df=all_df[(all_df["Analysis Status"]=="SUCCESS")&(all_df["Relevant"]=="NO")]
+    evidence_df=pd.DataFrame(evidence_rows); failed_df=pd.DataFrame(failed_rows)
+    methodology_df=pd.DataFrame({"Methodology":["Evidence source","Error rule"],"Description":["One source is selected per run: GovTrack Bill Page or Congress.gov Full Bill Text.","API/model failures are ANALYSIS FAILED and are never counted as Not Relevant."]})
+    buffer=io.BytesIO()
+    with pd.ExcelWriter(buffer,engine="openpyxl") as writer:
+        all_df.to_excel(writer,index=False,sheet_name="All Results"); relevant_df.to_excel(writer,index=False,sheet_name="Relevant"); not_relevant_df.to_excel(writer,index=False,sheet_name="Not Relevant"); evidence_df.to_excel(writer,index=False,sheet_name="Evidence"); failed_df.to_excel(writer,index=False,sheet_name="Failed Analysis"); methodology_df.to_excel(writer,index=False,sheet_name="Methodology")
         for ws in writer.book.worksheets:
-            ws.freeze_panes = "A2"
-            ws.auto_filter.ref = ws.dimensions
+            ws.freeze_panes="A2"; ws.auto_filter.ref=ws.dimensions
             for col in ws.columns:
-                letter = col[0].column_letter
-                width = 12
-                for cell in list(col)[:100]:
-                    width = max(width, min(len(str(cell.value or "")) + 2, 60))
-                ws.column_dimensions[letter].width = width
-
+                letter=col[0].column_letter; width=12
+                for cell in list(col)[:100]: width=max(width,min(len(str(cell.value or ""))+2,60))
+                ws.column_dimensions[letter].width=width
     return buffer.getvalue()
 
-
 if st.session_state.results:
-    res = st.session_state.results
-    success = [r for r in res if r.get("analysis_status", "SUCCESS") == "SUCCESS"]
-    failed = [r for r in res if r.get("analysis_status", "SUCCESS") == "FAILED"]
-    rel = [r for r in success if r.get("relevant") == "YES"]
-    non = [r for r in success if r.get("relevant") == "NO"]
-
-    st.subheader("📌 Analysis status")
-    a, b, c, d = st.columns(4)
-    a.metric("Reviewed", len(res))
-    b.metric("Relevant", len(rel))
-    c.metric("Not relevant", len(non))
-    d.metric("Analysis failed", len(failed))
-
-    if failed:
-        st.warning(f"⚠️ {len(failed)} action(s) failed analysis and are NOT counted as Not Relevant.")
-
+    res=st.session_state.results; success=[r for r in res if r.get("analysis_status","SUCCESS")=="SUCCESS"]; failed=[r for r in res if r.get("analysis_status","SUCCESS")=="FAILED"]; rel=[r for r in success if r.get("relevant")=="YES"]; non=[r for r in success if r.get("relevant")=="NO"]
+    st.subheader("📌 Analysis status"); a,b,c,d=st.columns(4); a.metric("Reviewed",len(res)); b.metric("Relevant",len(rel)); c.metric("Not relevant",len(non)); d.metric("Analysis failed",len(failed))
+    if failed: st.warning(f"⚠️ {len(failed)} action(s) failed analysis and are NOT counted as Not Relevant.")
     if rel:
-        x = pd.DataFrame(rel)["primary_classification"].value_counts().reset_index()
-        x.columns = ["Classification", "Actions"]
-        st.plotly_chart(
-            px.bar(x, x="Classification", y="Actions", color="Classification",
-                   color_discrete_sequence=px.colors.qualitative.Bold),
-            use_container_width=True
-        )
-
+        x=pd.DataFrame(rel)["primary_classification"].value_counts().reset_index(); x.columns=["Classification","Actions"]
+        st.plotly_chart(px.bar(x,x="Classification",y="Actions",color="Classification",color_discrete_sequence=px.colors.qualitative.Bold),use_container_width=True)
     st.subheader("✅ Relevant Congressional actions")
-    if not rel:
-        st.caption("No successfully analyzed action was classified as relevant in this run.")
-
+    if not rel: st.caption("No successfully analyzed action was classified as relevant in this run.")
     for r in rel:
         with st.expander(f"{r['bill_number']} — {r['title']} | {r.get('primary_classification','')}"):
-            st.write("**Country:**", r.get("country", ""))
-            st.write("**Policy stage:**", r.get("policy_stage", ""))
-            st.write("**Directness:**", r.get("directness", ""))
-            st.write("**Affected scenarios:**", ", ".join(r.get("affected_scenarios", [])))
-            st.write("**Mechanism:**", r.get("mechanism", ""))
-            st.write("**Analysis:**", r.get("analytical_summary", ""))
-            for e in r.get("evidence", []):
-                st.info(f"“{e.get('quote','')}”\n\nSource: {e.get('source','GovTrack')}\n\nWhy it matters: {e.get('why_it_matters','')}")
-
+            st.write("**Evidence source:**",r.get("evidence_source","")); st.write("**Country:**",r.get("country","")); st.write("**Policy stage:**",r.get("policy_stage","")); st.write("**Directness:**",r.get("directness","")); st.write("**Affected scenarios:**",", ".join(r.get("affected_scenarios",[]))); st.write("**Mechanism:**",r.get("mechanism","")); st.write("**Analysis:**",r.get("analytical_summary",""))
+            for e in r.get("evidence",[]): st.info(f"“{e.get('quote','')}”\n\nSource: {e.get('source',r.get('evidence_source',''))}\n\nWhy it matters: {e.get('why_it_matters','')}")
     with st.expander(f"⚪ Not relevant ({len(non)})"):
-        for r in non:
-            st.markdown(f"**{r['bill_number']} — {r['title']}**")
-            st.write(r.get("analytical_summary", ""))
-            st.divider()
-
+        for r in non: st.markdown(f"**{r['bill_number']} — {r['title']}**"); st.write(r.get("analytical_summary","")); st.divider()
     with st.expander(f"⚠️ Analysis failed ({len(failed)})"):
-        for r in failed:
-            st.markdown(f"**{r['bill_number']} — {r['title']}**")
-            st.error(r.get("error_message", "Unknown analysis error"))
-            st.divider()
-
+        for r in failed: st.markdown(f"**{r['bill_number']} — {r['title']}**"); st.error(r.get("error_message","Unknown analysis error")); st.divider()
     st.subheader("📥 Export research results")
-    st.download_button(
-        "⬇️ Download DAQO analysis + evidence (Excel)",
-        data=build_excel_export(res),
-        file_name="DAQO_RAG_Analysis.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+    st.download_button("⬇️ Download DAQO analysis + evidence (Excel)",data=build_excel_export(res),file_name="DAQO_RAG_Analysis.xlsx",mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
