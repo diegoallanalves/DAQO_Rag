@@ -45,7 +45,7 @@ cols = {
     "status_col": find_col("Status"),
     "country_col": find_col("Country"),
     "type_col": find_col("Bill Type", "Type"),
-     "govtrack_col": find_col("GOVTRACK URL", "GovTrack"),
+    "govtrack_col": find_col("GOVTRACK URL", "GovTrack"),
     "congress_col": find_col("Secondary Source - full text (congress.gov)", "Secondary Source", "congress.gov"),
     "congress_session_col": find_col("Congress"),
 }
@@ -54,25 +54,58 @@ if not cols["govtrack_col"] and not cols["congress_col"]:
     st.error('The workbook needs a GOVTRACK URL or Secondary Source - full text (congress.gov) column.')
     st.stop()
 
+st.subheader("🏛️ Filter by Congress")
+congress_col = cols["congress_session_col"]
+if congress_col:
+    congress_values = sorted([str(v).strip() for v in df[congress_col].dropna().unique() if str(v).strip()])
+    selected_congress = st.multiselect(
+        "Congress sessions to include",
+        options=congress_values,
+        default=congress_values,
+        help="Filter the dataset before web retrieval and AI analysis. Select one or more Congress sessions."
+    )
+    if selected_congress:
+        filtered_df = df[df[congress_col].astype(str).str.strip().isin(selected_congress)].copy()
+    else:
+        filtered_df = df.iloc[0:0].copy()
+else:
+    selected_congress = []
+    filtered_df = df.copy()
+    st.warning("Congress column not found, so the dataset cannot be filtered by Congress session.")
+
+f1, f2 = st.columns(2)
+f1.metric("Original dataset", len(df))
+f2.metric("Actions after Congress filter", len(filtered_df))
+
+if filtered_df.empty:
+    st.warning("Select at least one Congress session before running the analysis.")
+
 st.subheader("🌐 Choose Congressional Data Source")
-source_options={}
-if cols["govtrack_col"]: source_options["GovTrack Bill Page"]="govtrack"
-if cols["congress_col"]: source_options["Congress.gov Full Bill Text"]="congress"
-source_label=st.radio("Website data source",list(source_options.keys()),horizontal=True,
-                      help="One selected source is used for evidence retrieval in this run.")
-selected_source=source_options[source_label]
-if selected_source=="govtrack":
+source_options = {}
+if cols["govtrack_col"]:
+    source_options["GovTrack Bill Page"] = "govtrack"
+if cols["congress_col"]:
+    source_options["Congress.gov Full Bill Text"] = "congress"
+source_label = st.radio(
+    "Website data source",
+    list(source_options.keys()),
+    horizontal=True,
+    help="One selected source is used for evidence retrieval in this run."
+)
+selected_source = source_options[source_label]
+if selected_source == "govtrack":
     st.caption('📘 GovTrack Bill Page — Excel column: "GOVTRACK URL".')
 else:
     st.caption('🏛️ Congress.gov Full Bill Text — Excel column: "Secondary Source - full text (congress.gov)".')
 st.info("Friendly source names are shown here; the original Excel column names remain unchanged.")
+
 st.subheader("📊 Dataset overview")
 c1, c2 = st.columns(2)
-c1.metric("Congressional actions", len(df))
-c2.metric("Countries", df[cols["country_col"]].nunique() if cols["country_col"] else "—")
+c1.metric("Congressional actions", len(filtered_df))
+c2.metric("Countries", filtered_df[cols["country_col"]].nunique() if cols["country_col"] and not filtered_df.empty else "—")
 
-with st.expander("View source data"):
-    st.dataframe(df, use_container_width=True)
+with st.expander("View filtered source data"):
+    st.dataframe(filtered_df, use_container_width=True)
 
 for k, v in {"docs": [], "summary": None, "log": [], "results": []}.items():
     if k not in st.session_state:
@@ -80,16 +113,20 @@ for k, v in {"docs": [], "summary": None, "log": [], "results": []}.items():
 
 st.divider()
 st.subheader("📚 Step 1 — Retrieve Congressional evidence")
-n = st.number_input("Actions to scan", 1, max(1, len(df)), min(10, len(df)), 1)
+max_actions = max(1, len(filtered_df))
+default_actions = min(10, max_actions)
+n = st.number_input("Actions to scan", 1, max_actions, default_actions, 1, disabled=filtered_df.empty)
 
-if st.button("🌐 Build Evidence Base", type="primary"):
+if st.button("🌐 Build Evidence Base", type="primary", disabled=filtered_df.empty):
     p = st.progress(0)
     msg = st.empty()
+
     def cb(done, total, text):
         p.progress(min(done / max(total, 1), 1.0))
         msg.write(text)
 
-    docs, s, l = build_document_store(df.head(int(n)), cols, selected_source, cb)
+    analysis_df = filtered_df.head(int(n))
+    docs, s, l = build_document_store(analysis_df, cols, selected_source, cb)
     st.session_state.docs = docs
     st.session_state.summary = s
     st.session_state.log = l
@@ -128,9 +165,11 @@ if st.button("🧠 Run Qualitative Classification"):
     else:
         p = st.progress(0)
         msg = st.empty()
+
         def cb2(done, total, text):
             p.progress(min(done / max(total, 1), 1.0))
             msg.write(text)
+
         st.session_state.results = run_classification(st.session_state.docs, key, cb2)
         p.progress(1.0)
         msg.empty()
@@ -173,7 +212,7 @@ def build_excel_export(results):
                 "Source": e.get("source", r.get("evidence_source", "")),
                 "Why It Matters": e.get("why_it_matters", ""),
                 "Evidence Source": r.get("evidence_source", ""),
-            "Source URL": source_urls,
+                "Source URL": source_urls,
             })
 
         if status == "FAILED":
@@ -184,7 +223,7 @@ def build_excel_export(results):
                 "Error Type": r.get("error_type", ""),
                 "Error Message": r.get("error_message", ""),
                 "Evidence Source": r.get("evidence_source", ""),
-            "Source URL": source_urls,
+                "Source URL": source_urls,
             })
 
     all_df = pd.DataFrame(all_rows)
@@ -193,8 +232,9 @@ def build_excel_export(results):
     evidence_df = pd.DataFrame(evidence_rows)
     failed_df = pd.DataFrame(failed_rows)
     methodology_df = pd.DataFrame({
-        "Methodology": ["Evidence source", "Error rule"],
+        "Methodology": ["Dataset filter", "Evidence source", "Error rule"],
         "Description": [
+            "Congress session filtering is applied before website retrieval and AI analysis.",
             "One source is selected per run: GovTrack Bill Page or Congress.gov Full Bill Text.",
             "API/model failures are ANALYSIS FAILED and are never counted as Not Relevant.",
         ],
