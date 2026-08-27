@@ -1,21 +1,43 @@
-# DAQO Congressional RAG — Dual Source v6
+# DAQO Congressional RAG — Smart Pre-Screen v9
 
-Choose one source per run:
-- **GovTrack Bill Page** → `GOVTRACK URL`
-- **Congress.gov Full Bill Text** → `Secondary Source - full text (congress.gov)`
+This version is optimized for large Congressional datasets.
 
-The original Excel column names are unchanged.
+## Pipeline
 
-Flow: Excel → choose source → retrieve evidence → qualitative analysis → Relevant / Not Relevant / Analysis Failed → Country / Industry / Investment → Risk / Opportunity → evidence → Excel export.
+1. **Congress filter**
+2. **Country filter**
+3. **Evidence source selection**
+4. **Local NLP / keyword pre-screen** — no OpenAI cost
+5. **URL and duplicate quality checks**
+6. **Local relevance ranking**
+7. **Processing strategy**
+   - Highest relevance first
+   - Random sample
+   - All filtered candidates
+   - Resume unfinished / failed
+8. **Evidence retrieval**
+9. **OpenAI qualitative classification**
+10. **Checkpoint results for resume**
+11. **Excel export**
 
-v5 protections remain: failed AI calls are never counted as Not Relevant, and Excel export contains results, evidence, failures and methodology.
+## Why it is faster
 
-Congress.gov may block automated retrieval. Such cases are shown as `Source Retrieval Failed`; the app does not silently switch sources.
+OpenAI no longer receives every row from the filtered dataset. Low-relevance,
+duplicate, missing-URL, and invalid-URL records can be removed before retrieval.
 
-Local setup:
-1. Put `raw_data.xlsx` in `data/`
-2. Create `.env` with `OPENAI_API_KEY=your_key_here`
-3. `pip install -r requirements.txt`
-4. `streamlit run app.py`
+## Local setup
 
-Never commit `.env`.
+Create `.env`:
+
+```text
+OPENAI_API_KEY=your_key_here
+```
+
+Install and run:
+
+```powershell
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+`.env` is ignored and is not included in this ZIP.
